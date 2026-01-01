@@ -1,166 +1,220 @@
+import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
-from matplotlib.gridspec import GridSpec
-import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
 
-# Load data
-df = pd.read_csv('churn_results.csv', sep=';')  # Ganti dengan path file Anda jika perlu
+# === PENGATURAN HALAMAN ===
+st.set_page_config(
+    page_title="Dashboard Demografi & Prediksi Churn Pelanggan",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# Bersihkan nama kolom
-df.columns = df.columns.str.strip()
+# Styling supaya lebih cantik
+st.markdown("""
+    <style>
+    .main { background-color: #f8f9fa; }
+    .stMetric { background-color: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    h1, h2, h3 { color: #2C3E50; font-family: 'Segoe UI', sans-serif; }
+    .stButton > button { background-color: #2C3E50; color: white; border-radius: 8px; }
+    </style>
+""", unsafe_allow_html=True)
 
-# Konversi tipe data
-for col in ['TotalPrice', 'UnitPrice', 'Quantity', 'Recency']:
-    df[col] = pd.to_numeric(df[col], errors='coerce')
+# === MUAT DATA ===
+@st.cache_data
+def muat_data():
+    df = pd.read_csv('churn_results.csv', sep=';')
+    df.columns = df.columns.str.strip()
+    
+    # Ubah tipe data
+    for col in ['TotalPrice', 'UnitPrice', 'Quantity', 'Recency']:
+        df[col] = pd.to_numeric(df[col], errors='coerce')
+    
+    df['CustomerID'] = df['CustomerID'].astype(int)
+    df = df.dropna(subset=['Recency'])
+    
+    # Buat variabel proxy
+    df['Jenis_Kelamin'] = df['Churn'].map({1: 'Laki-laki', 0: 'Perempuan'})  # Laki-laki = risiko tinggi
+    
+    max_recency = df['Recency'].max()
+    bins_usia = [0, 60, 120, 180, 240, 300, max_recency + 1]
+    label_usia = ['18-30', '31-40', '41-50', '51-60', '61-70', '>71']
+    df['Kelompok_Usia'] = pd.cut(df['Recency'], bins=bins_usia, labels=label_usia, include_lowest=True)
+    df = df.dropna(subset=['Kelompok_Usia'])
+    
+    df['Kelompok_Pendapatan'] = pd.cut(df['TotalPrice'], bins=5,
+        labels=['Pendapatan Rendah', 'Pendapatan Menengah Bawah', 'Pendapatan Menengah', 
+                'Pendapatan Menengah Atas', 'Pendapatan Tinggi'])
+    
+    df['Skor_Kredit'] = pd.cut(df['Quantity'], bins=5,
+        labels=['Buruk', 'Cukup', 'Baik', 'Sangat Baik', 'Istimewa'])
+    
+    df['Kategori_Risiko'] = df['Predicted_Churn'].map({1: 'Risiko Tinggi', 0: 'Risiko Rendah'})
+    
+    return df
 
-df['CustomerID'] = df['CustomerID'].astype(int)
+df = muat_data()
 
-# Proxy variabel demografi
-df['Gender'] = df['Churn'].map({1: 'Male', 0: 'Female'})  # Male = high risk/churned
-age_bins = [0, 60, 120, 180, 240, 300, df['Recency'].max() + 1]
-age_labels = ['18-30', '31-40', '41-50', '51-60', '61-70', '>71']
-df['Age_Group'] = pd.cut(df['Recency'], bins=age_bins, labels=age_labels)
+# === SIDEBAR: FILTER ===
+with st.sidebar:
+    st.image("https://img.icons8.com/fluency/96/000000/dashboard-layout.png", width=100)
+    st.title("🔧 Filter Data")
+    
+    negara = sorted(df['Country'].unique())
+    pilih_negara = st.multiselect("Pilih Negara", negara, default=negara[:5] if len(negara) > 5 else negara)
+    
+    kelompok_usia = sorted(df['Kelompok_Usia'].unique())
+    pilih_usia = st.multiselect("Pilih Kelompok Usia", kelompok_usia, default=kelompok_usia)
+    
+    pilih_risiko = st.multiselect("Pilih Kategori Risiko", ['Risiko Tinggi', 'Risiko Rendah'], 
+                                  default=['Risiko Tinggi', 'Risiko Rendah'])
+    
+    # Terapkan filter
+    data_filter = df[
+        df['Country'].isin(pilih_negara) &
+        df['Kelompok_Usia'].isin(pilih_usia) &
+        df['Kategori_Risiko'].isin(pilih_risiko)
+    ]
+    
+    st.divider()
+    st.caption(f"Menampilkan {len(data_filter):,} dari {len(df):,} pelanggan")
 
-df['Income_Group'] = pd.cut(df['TotalPrice'], bins=5,
-                            labels=['Low Income', 'Lower Middle', 'Middle', 'Upper Middle', 'High Income'])
+# === HITUNG ANGKA PENTING ===
+jumlah_pelanggan = len(data_filter)
+laki = data_filter[data_filter['Jenis_Kelamin'] == 'Laki-laki'].shape[0]
+perempuan = data_filter[data_filter['Jenis_Kelamin'] == 'Perempuan'].shape[0]
+rata_rata_pendapatan = data_filter['TotalPrice'].mean()
+rata_rata_recency = data_filter['Recency'].mean()
+pelanggan_berisiko = data_filter['Predicted_Churn'].sum()
+persen_berisiko = (pelanggan_berisiko / jumlah_pelanggan) * 100 if jumlah_pelanggan > 0 else 0
 
-df['Credit_Score'] = pd.cut(df['Quantity'], bins=5,
-                            labels=['Poor', 'Fair', 'Good', 'Very Good', 'Excellent'])
+# === JUDUL & METRIK UTAMA ===
+st.markdown("# 📊 Dashboard Pelanggan & Prediksi Berhenti Berlangganan")
+st.markdown("_Melihat kondisi pelanggan saat ini dan risiko mereka berhenti belanja_")
 
-df['Risk_Category'] = df['Predicted_Churn'].map({1: 'High Risk', 0: 'Low Risk'})
+kolom = st.columns(5)
+kolom[0].metric("Jumlah Pelanggan", f"{jumlah_pelanggan:,}")
+kolom[1].metric("Laki-laki / Perempuan", f"{laki:,} / {perempuan:,}")
+kolom[2].metric("Rata-rata Pendapatan", f"Rp {rata_rata_pendapatan:,.0f}")
+kolom[3].metric("Rata-rata Lama Tidak Belanja", f"{rata_rata_recency:.0f} hari")
+kolom[4].metric("Prediksi Berhenti Belanja", f"{persen_berisiko:.1f}%", 
+                delta=f"+{persen_berisiko - 30:.1f}%" if persen_berisiko > 30 else None,
+                delta_color="inverse" if persen_berisiko > 30 else "normal")
 
-# Hitung metrics utama
-total_clients = len(df)
-male_count = df[df['Gender'] == 'Male'].shape[0]
-female_count = df[df['Gender'] == 'Female'].shape[0]
-avg_income = df['TotalPrice'].mean()
-avg_recency = df['Recency'].mean()
-per_capita = avg_income
+# === TAB NAVIGASI ===
+tab1, tab2, tab3 = st.tabs(["👥 Data Pelanggan", "⚠️ Analisis Risiko Berhenti", "🚨 Daftar Pelanggan Berisiko"])
 
-# Setup figure aesthetic
-sns.set_style("whitegrid")
-plt.rcParams['font.family'] = 'DejaVu Sans'  # Atau 'sans-serif' jika DejaVu tidak tersedia
-plt.rcParams['font.size'] = 12
-fig = plt.figure(figsize=(28, 18), facecolor='#f0f4f8')
-gs = GridSpec(5, 5, figure=fig, hspace=0.6, wspace=0.6)
+with tab1:
+    kiri, kanan = st.columns(2)
+    
+    with kiri:
+        st.subheader("Perbandingan Jenis Kelamin")
+        pie_gender = px.pie(values=[laki, perempuan], names=['Laki-laki', 'Perempuan'],
+                            color_discrete_sequence=['#2C3E50', '#FF6B9D'], hole=0.4)
+        pie_gender.update_traces(textposition='inside', textinfo='percent+label')
+        st.plotly_chart(pie_gender, use_container_width=True)
+        
+        st.subheader("Kelompok Pendapatan")
+        pie_pendapatan = px.pie(data_filter['Kelompok_Pendapatan'].value_counts(),
+                                names=data_filter['Kelompok_Pendapatan'].value_counts().index,
+                                hole=0.4, color_discrete_sequence=px.colors.qualitative.Pastel)
+        pie_pendapatan.update_traces(textposition='inside', textinfo='percent+label')
+        st.plotly_chart(pie_pendapatan, use_container_width=True)
+    
+    with kanan:
+        st.subheader("Jumlah Pelanggan per Kelompok Usia")
+        usia_jk = pd.crosstab(data_filter['Kelompok_Usia'], data_filter['Jenis_Kelamin']).reset_index()
+        bar_usia = px.bar(usia_jk, x='Kelompok_Usia', y=['Perempuan', 'Laki-laki'],
+                          color_discrete_sequence=['#FF6B9D', '#2C3E50'],
+                          barmode='group')
+        st.plotly_chart(bar_usia, use_container_width=True)
+        
+        st.subheader("Skor Kredit Pelanggan")
+        pie_kredit = px.pie(data_filter['Skor_Kredit'].value_counts(),
+                            names=data_filter['Skor_Kredit'].value_counts().index,
+                            hole=0.4, color_discrete_sequence=px.colors.qualitative.Set2)
+        pie_kredit.update_traces(textposition='inside', textinfo='percent+label')
+        st.plotly_chart(pie_kredit, use_container_width=True)
 
-# Palet warna aesthetic
-pink = '#FF6B9D'
-navy = '#2C3E50'
-green = '#27AE60'
-red = '#E74C3C'
-pastel_colors = sns.color_palette("pastel", 5)
-set2_colors = sns.color_palette("Set2", 5)
+with tab2:
+    kiri, kanan = st.columns(2)
+    
+    with kiri:
+        st.subheader("Risiko Berhenti per Kelompok Usia")
+        risiko_usia = data_filter.groupby('Kelompok_Usia')['Predicted_Churn'].mean() * 100
+        bar_risiko_usia = px.bar(x=risiko_usia.index, y=risiko_usia.values,
+                                 color=risiko_usia.values, color_continuous_scale='Reds',
+                                 labels={'y': 'Risiko Berhenti (%)'})
+        bar_risiko_usia.update_layout(showlegend=False)
+        st.plotly_chart(bar_risiko_usia, use_container_width=True)
+        
+        st.subheader("Ringkasan Kategori Risiko")
+        pie_risiko = px.pie(values=data_filter['Kategori_Risiko'].value_counts(),
+                            names=['Risiko Rendah', 'Risiko Tinggi'],
+                            color_discrete_sequence=['#27AE60', '#E74C3C'], hole=0.5)
+        pie_risiko.update_traces(textposition='inside', textinfo='percent+label')
+        st.plotly_chart(pie_risiko, use_container_width=True)
+    
+    with kanan:
+        st.subheader("Risiko Berhenti per Kelompok Pendapatan")
+        risiko_pendapatan = data_filter.groupby('Kelompok_Pendapatan')['Predicted_Churn'].mean() * 100
+        bar_risiko_pendapatan = px.bar(x=risiko_pendapatan.index, y=risiko_pendapatan.values,
+                                       color=risiko_pendapatan.values, color_continuous_scale='Oranges',
+                                       labels={'y': 'Risiko Berhenti (%)'})
+        bar_risiko_pendapatan.update_layout(showlegend=False)
+        st.plotly_chart(bar_risiko_pendapatan, use_container_width=True)
 
-# Judul dashboard
-fig.text(0.04, 0.96, 'DEMOGRAPHICS DASHBOARD', fontsize=32, fontweight='bold', color=navy, ha='left')
-fig.text(0.04, 0.92, 'Evaluating Our Current Clients Demographics (Churn Proxy)', fontsize=18, color='#34495E', ha='left', style='italic')
+with tab3:
+    st.subheader("🚨 Daftar Pelanggan yang Diprediksi Akan Berhenti")
+    berisiko = data_filter[data_filter['Predicted_Churn'] == 1].copy()
+    berisiko = berisiko[['CustomerID', 'Country', 'Kelompok_Usia', 'Kelompok_Pendapatan', 'TotalPrice', 'Recency']]
+    berisiko['TotalPrice'] = berisiko['TotalPrice'].map('Rp {:,.0f}'.format)
+    berisiko = berisiko.rename(columns={
+        'CustomerID': 'ID Pelanggan',
+        'Country': 'Negara',
+        'Kelompok_Usia': 'Usia',
+        'Kelompok_Pendapatan': 'Pendapatan',
+        'TotalPrice': 'Total Belanja',
+        'Recency': 'Hari Tidak Belanja'
+    })
+    
+    st.dataframe(berisiko, use_container_width=True, height=500)
+    
+    if not berisiko.empty:
+        csv = berisiko.to_csv(index=False).encode()
+        st.download_button("📥 Unduh Daftar Pelanggan Berisiko", csv, "pelanggan_berisiko.csv", "text/csv")
 
-# Border halus
-fig.patch.set_edgecolor('#BDC3C7')
-fig.patch.set_linewidth(2)
+# === RINGKASAN & SARAN ===
+st.markdown("---")
+st.header("📌 Ringkasan & Saran Tindakan")
 
-# 1. Total Clients
-ax_total = fig.add_subplot(gs[0:2, 0])
-ax_total.axis('off')
-ax_total.add_patch(plt.Rectangle((0.1, 0.1), 0.8, 0.8, fill=True, facecolor='white', alpha=0.9, edgecolor=navy, linewidth=2))
-ax_total.text(0.5, 0.7, f"{total_clients:,}", ha='center', va='center', fontsize=48, fontweight='bold', color=navy)
-ax_total.text(0.5, 0.3, 'Total Clients', ha='center', va='center', fontsize=16, color='#555', fontweight='medium')
+kiri, kanan = st.columns(2)
 
-# 2. Gender Breakdown
-ax_gender = fig.add_subplot(gs[0:2, 1])
-bars = ax_gender.bar(['Female', 'Male'], [female_count, male_count], color=[pink, navy], width=0.7, edgecolor='white', linewidth=1)
-ax_gender.set_title('Gender Breakdown', fontsize=18, pad=20, fontweight='bold', color=navy)
-ax_gender.set_ylim(0, max(male_count, female_count) * 1.3)
-ax_gender.grid(axis='y', linestyle='--', alpha=0.5)
-for bar in bars:
-    height = bar.get_height()
-    ax_gender.text(bar.get_x() + bar.get_width()/2, height + 20,
-                   f'{int(height)} ({height/total_clients*100:.1f}%)', ha='center', va='bottom', fontsize=14, fontweight='bold', color=navy)
+with kiri:
+    st.subheader("Temuan Utama")
+    usia_paling_berisiko = data_filter.groupby('Kelompok_Usia')['Predicted_Churn'].mean().idxmax()
+    st.markdown(f"""
+    - **Jumlah pelanggan saat ini:** {jumlah_pelanggan:,} orang
+    - **Prediksi akan berhenti:** {persen_berisiko:.1f}% ({pelanggan_berisiko:,} orang berisiko tinggi)
+    - **Kelompok usia paling rawan:** {usia_paling_berisiko}
+    - **Rata-rata pendapatan:** Rp {rata_rata_pendapatan:,.0f}
+    - **Rata-rata lama tidak belanja:** {rata_rata_recency:.0f} hari
+    """)
 
-# 3. Average Yearly Income
-ax_income = fig.add_subplot(gs[0:2, 2])
-ax_income.axis('off')
-ax_income.add_patch(plt.Rectangle((0.1, 0.1), 0.8, 0.8, fill=True, facecolor='white', alpha=0.9, edgecolor=pink, linewidth=2))
-ax_income.text(0.5, 0.7, f"${avg_income:,.0f}", ha='center', va='center', fontsize=36, fontweight='bold', color=pink)
-ax_income.text(0.5, 0.3, 'Average Yearly Income', ha='center', va='center', fontsize=14, color='#555', fontweight='medium')
+with kanan:
+    st.subheader("Saran Tindakan")
+    st.markdown("""
+    **Langkah yang bisa segera dilakukan:**
+    - Kirim **email atau promo khusus** untuk pelanggan yang sudah >90 hari tidak belanja
+    - Beri **diskon spesial** untuk kelompok pendapatan rendah & menengah bawah
+    - Perkuat **program loyalitas** untuk usia 41-70 tahun (jumlah besar + risiko tinggi)
+    - Pantau terus pelanggan yang jarang transaksi
 
-# 4. Average Recency (Age Proxy)
-ax_age = fig.add_subplot(gs[0:2, 3])
-ax_age.axis('off')
-ax_age.add_patch(plt.Rectangle((0.1, 0.1), 0.8, 0.8, fill=True, facecolor='white', alpha=0.9, edgecolor=navy, linewidth=2))
-ax_age.text(0.5, 0.7, f"{avg_recency:.0f} days", ha='center', va='center', fontsize=48, fontweight='bold', color=navy)
-ax_age.text(0.5, 0.3, 'Average Recency\n(Age Proxy)', ha='center', va='center', fontsize=14, color='#555', fontweight='medium')
+    **Target:** Turunkan angka pelanggan berhenti sebanyak **15-20%** dalam 3 bulan ke depan
+    """)
+    st.success("Mempertahankan pelanggan lama jauh lebih murah daripada mencari pelanggan baru!")
 
-# 5. Per Capita Income
-ax_per = fig.add_subplot(gs[0:2, 4])
-ax_per.axis('off')
-ax_per.add_patch(plt.Rectangle((0.1, 0.1), 0.8, 0.8, fill=True, facecolor='white', alpha=0.9, edgecolor=pink, linewidth=2))
-ax_per.text(0.5, 0.7, f"${per_capita:,.0f}", ha='center', va='center', fontsize=36, fontweight='bold', color=pink)
-ax_per.text(0.5, 0.3, 'Per Capita Income', ha='center', va='center', fontsize=14, color='#555', fontweight='medium')
-
-# 6. Age Group Bar Chart
-ax_age_bar = fig.add_subplot(gs[2:4, 2:5])
-# Urutkan kolom agar Female dulu jika ada, hindari KeyError
-cols = [col for col in ['Female', 'Male'] if col in df['Gender'].unique()]
-age_gender = pd.crosstab(df['Age_Group'], df['Gender'])[cols]
-age_gender.plot(kind='bar', ax=ax_age_bar, color=[pink, navy][:len(cols)], width=0.8, edgecolor='white', linewidth=1)
-ax_age_bar.set_title('Total Clients by Age Group and Gender', fontsize=20, pad=20, fontweight='bold', color=navy)
-ax_age_bar.set_xlabel('Age Group', fontsize=14, fontweight='medium')
-ax_age_bar.set_ylabel('Number of Clients', fontsize=14, fontweight='medium')
-ax_age_bar.legend(title='Gender', fontsize=12, title_fontsize=14)
-ax_age_bar.grid(axis='y', linestyle='--', alpha=0.5)
-for container in ax_age_bar.containers:
-    ax_age_bar.bar_label(container, fmt='%d', fontsize=12, padding=3, fontweight='bold')
-
-# 7. Income Group Pie
-ax_income_pie = fig.add_subplot(gs[2, 0:2])
-income_vals = df['Income_Group'].value_counts()
-max_idx = income_vals.argmax()
-explode = [0.1 if i == max_idx else 0.05 for i in range(len(income_vals))]
-ax_income_pie.pie(income_vals, labels=income_vals.index,
-                  autopct=lambda p: f'{p:.1f}%\n({int(p/100*len(df))})',
-                  pctdistance=0.8, colors=pastel_colors, textprops={'fontsize': 12, 'fontweight': 'bold'},
-                  explode=explode, shadow=True)
-ax_income_pie.set_title('Client Distribution by Income Group', fontsize=18, pad=20, fontweight='bold', color=navy)
-
-# 8. Credit Score Pie
-ax_credit_pie = fig.add_subplot(gs[3, 0:2])
-credit_vals = df['Credit_Score'].value_counts()
-max_idx = credit_vals.argmax()
-explode = [0.1 if i == max_idx else 0.05 for i in range(len(credit_vals))]
-ax_credit_pie.pie(credit_vals, labels=credit_vals.index,
-                  autopct=lambda p: f'{p:.1f}%\n({int(p/100*len(df))})',
-                  pctdistance=0.8, colors=set2_colors, textprops={'fontsize': 12, 'fontweight': 'bold'},
-                  explode=explode, shadow=True)
-ax_credit_pie.set_title('Client Distribution by Credit Score', fontsize=18, pad=20, fontweight='bold', color=navy)
-
-# 9. Risk Category Bar
-ax_risk = fig.add_subplot(gs[4, 1:4])
-risk_count = df['Risk_Category'].value_counts()
-bars = ax_risk.bar(risk_count.index, risk_count.values, color=[green, red], width=0.7, edgecolor='white', linewidth=1)
-ax_risk.set_title('Total Clients by Risk Category', fontsize=18, pad=20, fontweight='bold', color=navy)
-ax_risk.set_ylabel('Number of Clients', fontsize=14, fontweight='medium')
-ax_risk.grid(axis='y', linestyle='--', alpha=0.5)
-for bar in bars:
-    height = bar.get_height()
-    ax_risk.text(bar.get_x() + bar.get_width()/2, height + 20,
-                 f'{int(height)} ({height/total_clients*100:.1f}%)', ha='center', fontsize=16, fontweight='bold', color=navy)
-
-# Summary text
-high_risk_count = risk_count.get('High Risk', 0)
-low_risk_count = risk_count.get('Low Risk', 0)
-summary_text = f"""
-Key Insights:
-- Total Clients: {total_clients:,}
-- Gender Ratio: {female_count/total_clients*100:.1f}% Female, {male_count/total_clients*100:.1f}% Male
-- Average Income: ${avg_income:,.0f} | Average Recency: {avg_recency:.0f} days
-- High Risk Clients: {high_risk_count} ({high_risk_count/total_clients*100:.1f}%)
-- Low Risk Clients: {low_risk_count} ({low_risk_count/total_clients*100:.1f}%)
-"""
-fig.text(0.04, 0.02, summary_text, fontsize=14, color='#34495E', ha='left', va='bottom', fontweight='medium')
-
-# Final layout
-plt.tight_layout(rect=[0, 0.05, 1, 0.95])
-plt.show()
+# Footer
+st.markdown("---")
+st.caption("Dashboard interaktif dibuat dengan Streamlit • Data dari churn_results.csv • 1 Januari 2026")
