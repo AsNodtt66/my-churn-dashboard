@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 # --- PENGATURAN HALAMAN & TEMA ---
 st.set_page_config(
@@ -474,7 +473,7 @@ with tab3:
             "actions": [
                 "Re-engagement campaign",
                 "Flash sale notification",
-                ""We miss you" campaign",
+                "We miss you campaign",
                 "Product recommendations based on history"
             ]
         }
