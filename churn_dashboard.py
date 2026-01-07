@@ -14,7 +14,7 @@ st.set_page_config(
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
-    .stMetric { background-color: black; padding: 15px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    .stMetric { background-color: blue; padding: 15px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
     h1, h2, h3 { color: #2C3E50; }
     .stButton > button { background-color: #2C3E50; color: white; border-radius: 8px; }
     </style>
@@ -66,10 +66,11 @@ def muat_data():
         30: 'Singapura',
         31: 'Swiss',
         32: 'Swedia',
+        # Tambahkan jika ada kode lain di data Anda
     }
     df['Nama_Negara'] = df['Country'].map(peta_negara).fillna('Lainnya')
     
-    # Proxy variabel 
+    # Proxy variabel lain
     df['Jenis_Kelamin'] = df['Churn'].map({1: 'Laki-laki', 0: 'Perempuan'})
     
     max_recency = df['Recency'].max()
@@ -77,6 +78,13 @@ def muat_data():
     label_usia = ['18-30', '31-40', '41-50', '51-60', '61-70', '>71']
     df['Kelompok_Usia'] = pd.cut(df['Recency'], bins=bins_usia, labels=label_usia, include_lowest=True)
     df = df.dropna(subset=['Kelompok_Usia'])
+    
+    df['Kelompok_Pendapatan'] = pd.cut(df['TotalPrice'], bins=5,
+        labels=['Pendapatan Rendah', 'Pendapatan Menengah Bawah', 'Pendapatan Menengah', 
+                'Pendapatan Menengah Atas', 'Pendapatan Tinggi'])
+    
+    df['Skor_Kredit'] = pd.cut(df['Quantity'], bins=5,
+        labels=['Buruk', 'Cukup', 'Baik', 'Sangat Baik', 'Istimewa'])
     
     df['Kategori_Risiko'] = df['Predicted_Churn'].map({1: 'Risiko Tinggi', 0: 'Risiko Rendah'})
     
