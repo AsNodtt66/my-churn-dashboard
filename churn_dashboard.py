@@ -33,6 +33,43 @@ def muat_data():
     
     df['CustomerID'] = df['CustomerID'].astype(int)
     df = df.dropna(subset=['Recency'])
+
+    # === PEMETAAN KODE NEGARA KE NAMA NEGARA ===
+    peta_negara = {
+        0: 'Tidak Diketahui',
+        1: 'Inggris (UK)',
+        2: 'Australia',
+        3: 'Austria',
+        4: 'Bahrain',
+        5: 'Belgia',
+        6: 'Brasil',
+        7: 'Kanada',
+        8: 'Channel Islands',
+        9: 'Siprus',
+        10: 'Republik Ceko',
+        11: 'Prancis',
+        12: 'Jerman',
+        13: 'Yunani',
+        14: 'Irlandia (EIRE)',
+        16: 'Islandia',
+        17: 'Israel',
+        18: 'Italia',
+        19: 'Jepang',
+        20: 'Lebanon',
+        21: 'Lithuania',
+        22: 'Spanyol',
+        23: 'Malta',
+        24: 'Portugal',
+        26: 'Belanda',
+        27: 'Norwegia',
+        28: 'Polandia',
+        29: 'Arab Saudi',
+        30: 'Singapura',
+        31: 'Swiss',
+        32: 'Swedia',
+        # Tambahkan jika ada kode lain di data Anda
+    }
+    df['Nama_Negara'] = df['Country'].map(peta_negara).fillna('Lainnya')
     
     # Buat variabel proxy
     df['Jenis_Kelamin'] = df['Churn'].map({1: 'Laki-laki', 0: 'Perempuan'})  # Laki-laki = risiko tinggi
@@ -61,8 +98,9 @@ with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/000000/dashboard-layout.png", width=100)
     st.title("🔧 Filter Data")
     
-    negara = sorted(df['Country'].unique())
-    pilih_negara = st.multiselect("Pilih Negara", negara, default=negara[:5] if len(negara) > 5 else negara)
+    # Filter negara pakai nama asli
+    daftar_negara = sorted(df['Nama_Negara'].unique())
+    pilih_negara = st.multiselect("Pilih Negara", daftar_negara, default=daftar_negara[:5] if len(daftar_negara) > 5 else daftar_negara)
     
     kelompok_usia = sorted(df['Kelompok_Usia'].unique())
     pilih_usia = st.multiselect("Pilih Kelompok Usia", kelompok_usia, default=kelompok_usia)
@@ -72,7 +110,7 @@ with st.sidebar:
     
     # Terapkan filter
     data_filter = df[
-        df['Country'].isin(pilih_negara) &
+        df['Nama_Negara'].isin(pilih_negara) &
         df['Kelompok_Usia'].isin(pilih_usia) &
         df['Kategori_Risiko'].isin(pilih_risiko)
     ]
@@ -217,4 +255,4 @@ with kanan:
 
 # Footer
 st.markdown("---")
-st.caption("Dashboard interaktif dibuat dengan Streamlit • Data dari churn_results.csv • 1 Januari 2026")
+st.caption("Dashboard dibuat dengan Streamlit 1 Januari 2026")
