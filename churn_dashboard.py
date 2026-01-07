@@ -15,7 +15,7 @@ st.set_page_config(
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
-    .stMetric { background-color: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    .stMetric { background-color: black; padding: 15px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
     h1, h2, h3 { color: #2C3E50; font-family: 'Segoe UI', sans-serif; }
     .stButton > button { background-color: #2C3E50; color: white; border-radius: 8px; }
     </style>
