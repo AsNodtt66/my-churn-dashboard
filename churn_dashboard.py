@@ -1,22 +1,21 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 
 # === PENGATURAN HALAMAN ===
 st.set_page_config(
-    page_title="Dashboard Demografi & Prediksi Churn Pelanggan",
+    page_title="Dashboard Pelanggan & Prediksi Berhenti Belanja",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Styling supaya lebih cantik
+# Styling biar lebih cantik
 st.markdown("""
     <style>
     .main { background-color: #f8f9fa; }
-    .stMetric { background-color: black; padding: 15px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
-    h1, h2, h3 { color: #2C3E50; font-family: 'Segoe UI', sans-serif; }
+    .stMetric { background-color: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    h1, h2, h3 { color: #2C3E50; }
     .stButton > button { background-color: #2C3E50; color: white; border-radius: 8px; }
     </style>
 """, unsafe_allow_html=True)
@@ -33,7 +32,7 @@ def muat_data():
     
     df['CustomerID'] = df['CustomerID'].astype(int)
     df = df.dropna(subset=['Recency'])
-
+    
     # === PEMETAAN KODE NEGARA KE NAMA NEGARA ===
     peta_negara = {
         0: 'Tidak Diketahui',
@@ -71,8 +70,8 @@ def muat_data():
     }
     df['Nama_Negara'] = df['Country'].map(peta_negara).fillna('Lainnya')
     
-    # Buat variabel proxy
-    df['Jenis_Kelamin'] = df['Churn'].map({1: 'Laki-laki', 0: 'Perempuan'})  # Laki-laki = risiko tinggi
+    # Proxy variabel lain
+    df['Jenis_Kelamin'] = df['Churn'].map({1: 'Laki-laki', 0: 'Perempuan'})
     
     max_recency = df['Recency'].max()
     bins_usia = [0, 60, 120, 180, 240, 300, max_recency + 1]
@@ -93,20 +92,39 @@ def muat_data():
 
 df = muat_data()
 
-# === SIDEBAR: FILTER ===
+# === SIDEBAR: FILTER DENGAN OPSI PILIH SEMUA ===
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/000000/dashboard-layout.png", width=100)
     st.title("🔧 Filter Data")
     
-    # Filter negara pakai nama asli
+    # Filter negara dengan opsi Pilih Semua
     daftar_negara = sorted(df['Nama_Negara'].unique())
-    pilih_negara = st.multiselect("Pilih Negara", daftar_negara, default=daftar_negara[:5] if len(daftar_negara) > 5 else daftar_negara)
+    pilih_semua_negara = st.checkbox("Pilih Semua Negara", value=True)
+    if pilih_semua_negara:
+        pilih_negara = daftar_negara
+    else:
+        pilih_negara = st.multiselect("Pilih Negara", daftar_negara, default=daftar_negara[:5] if len(daftar_negara) > 5 else daftar_negara)
     
+    # Filter kelompok usia dengan opsi Pilih Semua
     kelompok_usia = sorted(df['Kelompok_Usia'].unique())
-    pilih_usia = st.multiselect("Pilih Kelompok Usia", kelompok_usia, default=kelompok_usia)
+    pilih_semua_usia = st.checkbox("Pilih Semua Kelompok Usia", value=True)
+    if pilih_semua_usia:
+        pilih_usia = kelompok_usia
+    else:
+        pilih_usia = st.multiselect("Pilih Kelompok Usia", kelompok_usia, default=kelompok_usia)
     
-    pilih_risiko = st.multiselect("Pilih Kategori Risiko", ['Risiko Tinggi', 'Risiko Rendah'], 
-                                  default=['Risiko Tinggi', 'Risiko Rendah'])
+    # Filter kategori risiko dengan opsi Pilih Semua
+    daftar_risiko = ['Risiko Tinggi', 'Risiko Rendah']
+    pilih_semua_risiko = st.checkbox("Pilih Semua Kategori Risiko", value=True)
+    if pilih_semua_risiko:
+        pilih_risiko = daftar_risiko
+    else:
+        pilih_risiko = st.multiselect("Pilih Kategori Risiko", daftar_risiko, default=daftar_risiko)
+    
+    # Tombol Reset Filter
+    if st.button("Reset Semua Filter"):
+        st.session_state.clear()
+        st.experimental_rerun()
     
     # Terapkan filter
     data_filter = df[
@@ -128,7 +146,7 @@ pelanggan_berisiko = data_filter['Predicted_Churn'].sum()
 persen_berisiko = (pelanggan_berisiko / jumlah_pelanggan) * 100 if jumlah_pelanggan > 0 else 0
 
 # === JUDUL & METRIK UTAMA ===
-st.markdown("# 📊 Dashboard Pelanggan & Prediksi Berhenti Berlangganan")
+st.markdown("# 📊 Dashboard Pelanggan & Prediksi Berhenti Belanja")
 st.markdown("_Melihat kondisi pelanggan saat ini dan risiko mereka berhenti belanja_")
 
 kolom = st.columns(5)
@@ -206,11 +224,11 @@ with tab2:
 with tab3:
     st.subheader("🚨 Daftar Pelanggan yang Diprediksi Akan Berhenti")
     berisiko = data_filter[data_filter['Predicted_Churn'] == 1].copy()
-    berisiko = berisiko[['CustomerID', 'Country', 'Kelompok_Usia', 'Kelompok_Pendapatan', 'TotalPrice', 'Recency']]
+    berisiko = berisiko[['CustomerID', 'Nama_Negara', 'Kelompok_Usia', 'Kelompok_Pendapatan', 'TotalPrice', 'Recency']]
     berisiko['TotalPrice'] = berisiko['TotalPrice'].map('Rp {:,.0f}'.format)
     berisiko = berisiko.rename(columns={
         'CustomerID': 'ID Pelanggan',
-        'Country': 'Negara',
+        'Nama_Negara': 'Negara',
         'Kelompok_Usia': 'Usia',
         'Kelompok_Pendapatan': 'Pendapatan',
         'TotalPrice': 'Total Belanja',
@@ -255,4 +273,4 @@ with kanan:
 
 # Footer
 st.markdown("---")
-st.caption("Dashboard dibuat dengan Streamlit 1 Januari 2026")
+st.caption("Dashboard BI Streamlit • UAS Business Intelegent • Kelompok 5")
