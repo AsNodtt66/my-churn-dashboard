@@ -123,7 +123,7 @@ def load_data():
     
     # 1. MAPPING NEGARA
     peta_negara = {
-        0: 'Tidak Diketahui', 1: 'Inggris (UK)', 2: 'Australia',
+        0: 'Denmark', 1: 'Inggris (UK)', 2: 'Australia',
         3: 'Austria', 4: 'Bahrain', 5: 'Belgia',
         6: 'Brasil', 7: 'Kanada', 8: 'Channel Islands',
         9: 'Siprus', 10: 'Republik Ceko', 11: 'Prancis',
