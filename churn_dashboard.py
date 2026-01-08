@@ -123,9 +123,16 @@ def load_data():
     
     # 1. MAPPING NEGARA
     peta_negara = {
-        1: "United Kingdom", 11: "France", 13: "Germany", 14: "EIRE", 
-        22: "Spain", 24: "Portugal", 2: "Australia", 3: "Austria",
-        32: "Sweden", 31: "Switzerland", 10: "Finland", 17: "Italy"
+        0: 'Tidak Diketahui', 1: 'Inggris (UK)', 2: 'Australia',
+        3: 'Austria', 4: 'Bahrain', 5: 'Belgia',
+        6: 'Brasil', 7: 'Kanada', 8: 'Channel Islands',
+        9: 'Siprus', 10: 'Republik Ceko', 11: 'Prancis',
+        12: 'Jerman', 13: 'Yunani', 14: 'Irlandia (EIRE)',
+        16: 'Islandia', 17: 'Israel', 18: 'Italia',
+        19: 'Jepang', 20: 'Lebanon', 21: 'Lithuania',
+        22: 'Spanyol', 23: 'Malta', 24: 'Portugal',
+        26: 'Belanda', 27: 'Norwegia', 28: 'Polandia', 29: 'Arab Saudi',
+        30: 'Singapura', 31: 'Swiss', 32: 'Swedia',
     }
     df['Country'] = df['Country'].map(peta_negara).fillna(df['Country'].astype(str))
 
